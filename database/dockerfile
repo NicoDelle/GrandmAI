@@ -1,0 +1,22 @@
+FROM nvidia/cuda:11.2.2-cudnn8-runtime-ubuntu20.04
+
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    python3-pip \
+    python3-venv \
+    libopenblas-dev \
+    libomp-dev \
+    wget
+
+# Install FAISS with GPU support
+RUN pip install --upgrade pip
+RUN pip install numpy faiss-gpu flask
+
+COPY faiss_server.py /faiss_server.py
+RUN chmod +x /faiss_server.py
+
+WORKDIR /
+
+EXPOSE 6000
+
+ENTRYPOINT [ "python3", "/faiss_server.py" ]

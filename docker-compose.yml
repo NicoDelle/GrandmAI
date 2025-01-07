@@ -1,0 +1,52 @@
+services:
+  ollama:
+    build:
+      context: ./ollama
+    ports:
+      - "11434:11434"
+    networks:
+      - llms
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+    volumes:
+      - ollama:/root/.ollama
+
+  rag:
+    image: http-client
+    build:
+      context: ./server
+    ports:
+      - "5000:5000"
+    networks:
+      - llms
+    depends_on:
+      - faiss
+    volumes:
+      - chunks:/server/chunks
+      
+  faiss:
+    build:
+      context: ./database
+    ports:
+      - "6000:6000"
+    networks:
+      - llms
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+    volumes:
+      - faiss_index:/faiss_index
+
+networks:
+  llms:
+    driver: bridge
+
+volumes:
+  ollama:
+  faiss_index:
+  chunks:

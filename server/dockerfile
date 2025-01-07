@@ -1,0 +1,20 @@
+FROM ubuntu
+
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    python3-pip \
+    python3-venv
+
+COPY httpServer.py /server/httpServer.py
+RUN chmod +x /server/httpServer.py
+
+WORKDIR /server
+
+RUN python3 -m venv venv
+RUN . venv/bin/activate
+RUN venv/bin/pip install flask requests pymupdf scikit-learn
+
+EXPOSE 5000
+
+COPY start_services.sh /server/start_services.sh
+ENTRYPOINT [ "/bin/bash", "/server/start_services.sh" ]

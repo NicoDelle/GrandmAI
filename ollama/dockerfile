@@ -1,0 +1,10 @@
+FROM ollama/ollama
+
+RUN apt-get update && apt-get install -y build-essential python3-pip 
+EXPOSE 11434
+
+COPY run-ollama.sh /tmp/run-ollama.sh
+WORKDIR /tmp
+RUN chmod +x run-ollama.sh
+ENTRYPOINT ["./run-ollama.sh"]
+
