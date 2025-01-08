@@ -1,0 +1,6 @@
+FROM qwen2.5:7b
+
+PARAMETER num_ctx 20000
+PARAMETER temperature 0.2
+PARAMETER top_p 0.8
+PARAMETER top_k 35
