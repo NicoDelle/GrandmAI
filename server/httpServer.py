@@ -11,11 +11,13 @@ app = Flask(__name__)
 OLLAMA_API_URL = "http://ollama:11434/api/"
 FAISS_HOST = os.getenv("FAISS_HOST", "faiss")
 FAISS_PORT = os.getenv("FAISS_PORT", "6000")
-MODEL_NAME = "qwen2.5:14b"
+MODEL_NAME = "grandmai" #"qwen2.5:14b"
 EMBEDDINGS_MODEL = "nomic-embed-text"
 
 MAX_CHUNK_LENGTH = 512
+CHUNK_OVERLAP_LENGTH = 128
 CHUNKS_FOLDER = "/server/chunks"
+CONTEX_SENT_SIZE = 9
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -44,12 +46,13 @@ def load_chunk(index):
     with open(chunk_filename, "r") as chunk_file:
         return chunk_file.read()
 
-def chunk_text(text, max_length=MAX_CHUNK_LENGTH):
+def chunk_text(text, max_length=MAX_CHUNK_LENGTH, overlap=CHUNK_OVERLAP_LENGTH):
     tokens = text.split()
-    for i in range(0, len(tokens), max_length):
-        chunk = " ".join(tokens[i:i + max_length])
+    i = 0
+    while i < len(tokens):
+        chunk = "".join(tokens[i:i + max_length])
+        i += max_length - overlap
         yield chunk
-        
 
 @app.route('/process', methods=['POST'])
 def process():
@@ -103,7 +106,7 @@ def process():
         sorted_super_chunks = [super_chunks[i] for i in sorted_indices]
 
         # Combine the top super-chunks
-        relevant_chunks = "\n".join(sorted_super_chunks[:10])
+        relevant_chunks = "\n".join(sorted_super_chunks[:CONTEX_SENT_SIZE])
         
         prompt = f"""Rispondi in italiano alla seguente domanda,
             basandoti sulle tue conoscenze e soprattutto sul contesto fornito di seguito.
@@ -157,14 +160,13 @@ def getEmbeddings():
             embeddings.append(model_response)
 
         # Send embeddings to FAISS service
+        app.logger.debug(f"embeddings size: {len(embeddings)}")
         vectors = [embedding['embedding'] for embedding in embeddings]
         response = requests.post(
             f"http://{FAISS_HOST}:{FAISS_PORT}/add_embeddings", 
             json={"embeddings": vectors}
         )
         response.raise_for_status()
-
-        app.logger.debug(f"Model response: {embeddings}")
         
         return jsonify({"status": "File processed and embeddings saved successfully"})
     
