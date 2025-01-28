@@ -6,7 +6,8 @@ RUN apt-get update && apt-get install -y \
     python3-venv
 
 COPY httpServer.py /server/httpServer.py
-RUN chmod +x /server/httpServer.py
+COPY retriever.py /server/retriever.py
+RUN chmod +x /server/httpServer.py /server/retriever.py
 
 WORKDIR /server
 
