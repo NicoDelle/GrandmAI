@@ -10,7 +10,7 @@ OLLAMA_API_URL = "http://ollama:11434/api/"
 FAISS_HOST = os.getenv("FAISS_HOST", "faiss")
 FAISS_PORT = os.getenv("FAISS_PORT", "6000")
 MODEL_NAME = "grandmai" #"qwen2.5:14b"
-EMBEDDINGS_MODEL = "granite-embedding:278m"
+EMBEDDINGS_MODEL = "granite-embedding:278m" #"nomic-embed-text"
 
 
 CONTEX_SENT_SIZE = 9
@@ -43,7 +43,7 @@ def process():
         app.logger.debug(f"Search results: {search_results}")
 
         # Process the chunks obtained by the search into the final context
-        context = retriever.get_context(search_results, prompt_embedding)
+        context = retriever.get_context(search_results)
         
 
         prompt = f"""Rispondi in italiano alla seguente domanda,
@@ -87,10 +87,13 @@ def getEmbeddings():
         embeddings = []
         for i, chunk in enumerate(chunks):
             retriever.store_chunk(chunk, i, file_path)
+            app.logger.debug(f"Sending request for chunk {i}: {chunk}")
             response = requests.post(
                 OLLAMA_API_URL + "embeddings",
-                json={"model": EMBEDDINGS_MODEL, "prompt": chunk}
+                json={"model": EMBEDDINGS_MODEL, "prompt": "a"*513}
             )
+            app.logger.debug(f"Response status code: {response.status_code}")
+            app.logger.debug(f"Response content: {response.content}")
             response.raise_for_status()
             model_response = response.json()
             embeddings.append(model_response)

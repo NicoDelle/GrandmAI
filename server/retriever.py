@@ -2,14 +2,14 @@ import fitz
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 from typing import List
-import os, requests
+import os
 
-MAX_CHUNK_LENGTH = 512
-CHUNK_OVERLAP_LENGTH = 128
+MAX_CHUNK_LENGTH = 64 #IT's A PROBLEM OF CONTEXT LENGTH: FIND A SUITABLE LENGTH!
+CHUNK_OVERLAP_LENGTH = 16
 CONTEX_SENT_SIZE = 9
 CHUNKS_FOLDER = "/server/chunks"
 OLLAMA_API_URL = "http://ollama:11434/api/"
-EMBEDDINGS_MODEL = "granite-embedding:278m"
+EMBEDDINGS_MODEL = "granite-embedding:278m" #"nomic-embed-text"
 
 
 def extract_text_from_pdf(pdf_path):
@@ -40,11 +40,11 @@ def chunk_text(text, max_length=MAX_CHUNK_LENGTH, overlap=CHUNK_OVERLAP_LENGTH):
     tokens = text.split()
     i = 0
     while i < len(tokens):
-        chunk = "".join(tokens[i:i + max_length])
+        chunk = " ".join(tokens[i:i + max_length])
         i += max_length - overlap
         yield chunk
 
-def get_context(search_results: List[str], prompt_embedding: List[int]):
+def get_context(search_results: List[str]):
     super_chunks = []
     for idx in search_results['indices'][0]:
         pre_chunk = load_chunk(idx-1) if idx > 0 else ""
@@ -57,20 +57,5 @@ def get_context(search_results: List[str], prompt_embedding: List[int]):
             
         super_chunks.append(pre_chunk + chunk + post_chunk + "\n")
 
-    super_chunks_embeddings = []
-    for super_chunk in super_chunks:
-        chunk_embedding_response = requests.post(
-            OLLAMA_API_URL + "embeddings", 
-            json={"model": EMBEDDINGS_MODEL, "prompt": super_chunk}
-        )
-        chunk_embedding_response.raise_for_status()
-        super_chunks_embeddings.append(chunk_embedding_response.json()['embedding'])
 
-    # Compute similarity scores
-    similarity_scores = cosine_similarity([prompt_embedding], super_chunks_embeddings)[0]
-
-    # Sort super-chunks by similarity scores
-    sorted_indices = np.argsort(similarity_scores)[::-1]
-    sorted_super_chunks = [super_chunks[i] for i in sorted_indices]
-
-    return "\n".join(sorted_super_chunks[:CONTEX_SENT_SIZE])
+    return "\n".join(super_chunks[:CONTEX_SENT_SIZE])
