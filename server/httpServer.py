@@ -1,8 +1,6 @@
 from flask import Flask, request, jsonify, render_template
-import requests
-import logging
-import os
-import retriever
+import requests, logging, os, retriever
+from typing import List
 
 app = Flask(__name__)
 UPLOAD_FOLDER = '/server/uploads'
@@ -13,10 +11,36 @@ OLLAMA_API_URL = "http://ollama:11434/api/"
 FAISS_HOST = os.getenv("FAISS_HOST", "faiss")
 FAISS_PORT = os.getenv("FAISS_PORT", "6000")
 MODEL_NAME = "grandmai" #"qwen2.5:14b"
-EMBEDDINGS_MODEL = "granite-embedding:278m" #"nomic-embed-text"
+EMBEDDINGS_MODEL = "bge-m3" #"granite-embedding:278m" #"nomic-embed-text"
 
 
 CONTEX_SENT_SIZE = 9
+
+def get_embedding(text: str) -> List[float]:
+    response = requests.post(
+        OLLAMA_API_URL + "embeddings", 
+        json={"model": EMBEDDINGS_MODEL, "prompt": text}
+    )
+    response.raise_for_status()
+    return response.json()['embedding']
+
+def get_k_matches(query_embedding: List[float], k: int = 10) -> List[int]:
+    search_response = requests.post(
+        f"http://{FAISS_HOST}:{FAISS_PORT}/search", 
+        json={"query": [query_embedding], "k": 10}
+    )
+    search_response.raise_for_status()
+    search_results = search_response.json()
+    app.logger.debug(f"Search results: {search_results}")
+
+    return search_results
+
+def store_embeddings(embeddings: List[List[float]]) -> None:
+    response = requests.post(
+        f"http://{FAISS_HOST}:{FAISS_PORT}/add_embeddings", 
+        json={"embeddings": embeddings}
+    )
+    response.raise_for_status()
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -43,24 +67,9 @@ def process():
         userPrompt = data.get('prompt')
         app.logger.debug(f"Received prompt: {userPrompt}")
 
-        #get the embedding of the prompt
-        response = requests.post(
-            OLLAMA_API_URL + "embeddings", 
-            json={"model": EMBEDDINGS_MODEL, "prompt": userPrompt}
-        )
-        response.raise_for_status()
-        prompt_embedding = response.json()['embedding']
-
-        #Obtian the 10 best matches from the FAISS index
-        search_response = requests.post(
-            f"http://{FAISS_HOST}:{FAISS_PORT}/search", 
-            json={"query": [prompt_embedding], "k": 10}
-        )
-        search_response.raise_for_status()
-        search_results = search_response.json()
-        app.logger.debug(f"Search results: {search_results}")
-
-        # Process the chunks obtained by the search into the final context
+        #Obtian the 10 best matches for the given promptfrom the FAISS index
+        prompt_embedding = get_embedding(userPrompt)
+        search_results = get_k_matches(prompt_embedding, 10)
         context = retriever.get_context(search_results)
         
 
@@ -83,53 +92,31 @@ def process():
         app.logger.error(f"Error processing request: {e}")
         return jsonify({"error": str(e)}), 500
 
-@app.route('/getEmbeddings', methods=['POST'])
+@app.route('/getEmbeddings', methods=['GET'])
 def getEmbeddings():
-    try:
-        if 'file' not in request.files:
-            return jsonify({"error": "No file part"}), 400
-        
-        file = request.files['file']
-        if file.filename == '':
-            return jsonify({"error": "No selected file"}), 400
-        
-        # Save the uploaded file
-        file_path = "/tmp/" + file.filename
-        file.save(file_path)
-        
-        # Extract text from the PDF
-        text = retriever.extract_text_from_pdf(file_path)
-        
-        # Split text into chunks
-        chunks = retriever.chunk_text(text)
+    files_to_embed = os.listdir(app.config['UPLOAD_FOLDER'])
+    if len(files_to_embed) == 0:
+        return jsonify({"error": "No file to embed"}), 400
+    
+    for file in files_to_embed:
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], file)
+        raw_text = retriever.extract_text_from_file(file_path)
+        chunks = retriever.chunk_text(raw_text)
+
         embeddings = []
         for i, chunk in enumerate(chunks):
             retriever.store_chunk(chunk, i, file_path)
             app.logger.debug(f"Sending request for chunk {i}: {chunk}")
-            response = requests.post(
-                OLLAMA_API_URL + "embeddings",
-                json={"model": EMBEDDINGS_MODEL, "prompt": "a"*513}
-            )
-            app.logger.debug(f"Response status code: {response.status_code}")
-            app.logger.debug(f"Response content: {response.content}")
-            response.raise_for_status()
-            model_response = response.json()
-            embeddings.append(model_response)
-
+            embedding = get_embedding(chunk)
+            embeddings.append(embedding)
+        
         # Send embeddings to FAISS service
         app.logger.debug(f"embeddings size: {len(embeddings)}")
-        vectors = [embedding['embedding'] for embedding in embeddings]
-        response = requests.post(
-            f"http://{FAISS_HOST}:{FAISS_PORT}/add_embeddings", 
-            json={"embeddings": vectors}
-        )
-        response.raise_for_status()
-        
-        return jsonify({"status": "File processed and embeddings saved successfully"})
+        store_embeddings(embeddings)
+
+        os.remove(file_path)
     
-    except Exception as e:
-        app.logger.error(f"Error processing request: {e}")
-        return jsonify({"error": str(e)}), 500
+    return jsonify({"status": "Files processed and embeddings saved successfully"})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)

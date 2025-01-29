@@ -11,7 +11,7 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
 # Initialize FAISS index
-d = 768  # Dimension of your embeddings
+d = 1024  # Dimension of your embeddings
 index_file = '/faiss_index/faiss_index.bin'
 
 if os.path.exists(index_file):
@@ -22,7 +22,6 @@ else:
     app.logger.info("FAISS index initialized")
 
 gpu_resources = faiss.StandardGpuResources()
-app.logger.info("FAISS index initialized and moved to GPU")
 
 @app.route('/add_embeddings', methods=['POST'])
 def add_embeddings():
@@ -32,6 +31,10 @@ def add_embeddings():
             raise ValueError("Invalid input: 'embeddings' field is required")
         
         embeddings = np.array(data['embeddings']).astype('float32')
+
+        embedding_dim = embeddings.shape[1]
+        if embedding_dim != index.d:
+            raise ValueError(f"Invalid input: Dimension of embeddings must be {index.d}, but got {embedding_dim}")
         index.add(embeddings)
         app.logger.info(f"Embeddings added: {embeddings}")
 

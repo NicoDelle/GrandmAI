@@ -3,7 +3,8 @@ ollama serve &
 sleep 5
 #ollama pull qwen2.5:14b
 ollama create grandmai -f /Modelfile
-ollama pull nomic-embed-text
+#ollama pull nomic-embed-text
+ollama pull bge-m3
 
 if [ $? -eq 0 ]; then
     echo "Model pulled successfully."

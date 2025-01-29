@@ -1,0 +1,7 @@
+flask
+requests
+pymupdf
+scikit-learn
+git+https://github.com/openai/whisper.git
+torch
+soundfile
