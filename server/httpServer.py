@@ -1,10 +1,13 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 import requests
 import logging
 import os
 import retriever
 
 app = Flask(__name__)
+UPLOAD_FOLDER = '/server/uploads'
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 OLLAMA_API_URL = "http://ollama:11434/api/"
 FAISS_HOST = os.getenv("FAISS_HOST", "faiss")
@@ -17,6 +20,21 @@ CONTEX_SENT_SIZE = 9
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
+@app.route('/')
+def index():
+    files = os.listdir(app.config['UPLOAD_FOLDER'])
+    return render_template('index.html', files=files)
+
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    if 'file' not in request.files:
+        return 'No file part'
+    file = request.files['file']
+    if file.filename == '':
+        return 'No selected file'
+    if file:
+        file.save(os.path.join(app.config['UPLOAD_FOLDER'], file.filename))
+        return 'File successfully uploaded'
 
 @app.route('/process', methods=['POST'])
 def process():
