@@ -1,19 +1,32 @@
-FROM ubuntu
+FROM nvidia/cuda:11.2.2-cudnn8-devel-ubuntu20.04
+
+#used to diasble wierd ffmpeg prompt
+ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y \
     build-essential \
+    git \
+    ffmpeg \
     python3-pip \
     python3-venv
 
 COPY httpServer.py /server/httpServer.py
 COPY retriever.py /server/retriever.py
-RUN chmod +x /server/httpServer.py /server/retriever.py
+COPY transcribe.py /server/transcribe.py
+COPY templates /server/templates
+RUN chmod +x /server/httpServer.py /server/retriever.py /server/transcribe.py
+
+
 
 WORKDIR /server
 
 RUN python3 -m venv venv
 RUN . venv/bin/activate
 RUN venv/bin/pip install flask requests pymupdf scikit-learn
+
+#setup whisper
+RUN venv/bin/pip install git+https://github.com/openai/whisper.git
+RUN venv/bin/pip install torch soundfile
 
 EXPOSE 5000
 

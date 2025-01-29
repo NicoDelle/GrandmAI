@@ -22,6 +22,11 @@ services:
       - "5000:5000"
     networks:
       - llms
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
     depends_on:
       - faiss
     volumes:
