@@ -8,7 +8,17 @@ MAX_CHUNK_LENGTH = 512
 CHUNK_OVERLAP_LENGTH = 128
 CONTEX_SENT_SIZE = 5
 CHUNKS_FOLDER = "/server/chunks"
+LAST_ID_FILE = "last_id.txt"
 
+def get_next_id() -> int:
+    if not os.path.exists(LAST_ID_FILE):
+        return 0
+    with open(LAST_ID_FILE, "r") as file:
+        return int(file.read().strip())
+
+def update_last_id(last_id: int) -> None:
+    with open(LAST_ID_FILE, "w") as file:
+        file.write(str(last_id))
 
 def extract_text_from_pdf(pdf_path: str) -> str:
     # Open the PDF file
@@ -31,18 +41,18 @@ def extract_text_from_file(file_path: str) -> str:
     if file_path.endswith(".mp4") or file_path.endswith(".mp3"):
         return transcribe.transcribe_audio(file_path)
 
-def store_chunk(chunk: str, index: int, pdf_path: str) -> None:
+def store_chunk(chunk: str, pdf_path: str, id: int) -> int:
     pdf_name = os.path.splitext(os.path.basename(pdf_path))[0]
-    chunk_filename = os.path.join(CHUNKS_FOLDER, f"{pdf_name}.{index}.txt")
+    chunk_filename = os.path.join(CHUNKS_FOLDER, f"{id}.{pdf_name}.txt")
     with open(chunk_filename, 'w') as chunk_file:
         chunk_file.write(chunk)
-
-# @TODO: Implement a way to group chunks by subject, need to put the faiss index of the chunk in its name for easier retrieval
+    
+# @TODO: make this more efficient, and add a way to identify chunks based on tags
 def load_chunk(index: int) -> str:
-    pdf_name = "DispensaLinux" # HARDCOED FOR NOW, NEED SOME WAY TO GROUP FILES BY SUBJECT
-    chunk_filename = os.path.join(CHUNKS_FOLDER, f"{pdf_name}.{index}.txt")
-    with open(chunk_filename, "r") as chunk_file:
-        return chunk_file.read()
+    for filename in os.listdir(CHUNKS_FOLDER):
+        if filename.startswith(f"{index}."):
+            with open(os.path.join(CHUNKS_FOLDER, filename), "r") as chunk_file:
+                return chunk_file.read()
 
 def chunk_text(text: str, max_length=MAX_CHUNK_LENGTH, overlap=CHUNK_OVERLAP_LENGTH) -> Generator[str, None, None]:
     tokens = text.split()
@@ -79,9 +89,10 @@ def get_context(search_results: List[str]) -> str:
     return "\n".join(super_chunks[:CONTEX_SENT_SIZE])
 """
 
-def get_context(search_results: List[str]) -> str:
+def get_context(search_results: List[int]) -> str:
     context = []
     for idx in search_results:
         chunk = load_chunk(idx)
-        context.append(chunk)
+        if chunk is not None:
+            context.append(chunk)
     return "\n".join(context)

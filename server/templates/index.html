@@ -19,8 +19,15 @@
             {% endfor %}
         </ul>
     </div>
-    <form action="/getEmbeddings">
-        <input type="submit" value="Get embeddings">
-    </form>
+    <div>
+        <form action="/getEmbeddings">
+            <input type="submit" value="Get embeddings">
+        </form>
+        <form action="/summarize">
+            <input type="submit" value="Summarize">
+        </form>
+        <form action="/clearUploads">
+            <input type="submit" value="Clear uploads">
+    </div>
 </body>
 </html>
